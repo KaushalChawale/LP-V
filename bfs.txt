@@ -1,0 +1,89 @@
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <omp.h>
+
+using namespace std;
+
+// Function to perform parallel BFS
+void parallelBFS(const vector<vector<int> >& adjList, int start, int numVertices) {
+    vector<bool> visited(numVertices, false);
+    queue<int> q;
+
+    visited[start] = true;
+    q.push(start);
+
+    cout << "BFS Traversal: ";
+
+    while (!q.empty()) {
+        int levelSize = q.size();
+
+        // Store nodes of current level
+        vector<int> currentLevel;
+
+        for (int i = 0; i < levelSize; ++i) {
+            int node = q.front();
+            q.pop();
+            cout << node << " ";
+            currentLevel.push_back(node);
+        }
+
+        vector<int> nextLevel;
+
+        #pragma omp parallel for
+        for (int i = 0; i < currentLevel.size(); ++i) {
+            int node = currentLevel[i];
+
+            for (int j = 0; j < adjList[node].size(); ++j) {
+                int neighbor = adjList[node][j];
+
+                // Use critical section to avoid race condition
+                #pragma omp critical
+                {
+                    if (!visited[neighbor]) {
+                        visited[neighbor] = true;
+                        nextLevel.push_back(neighbor);
+                    }
+                }
+            }
+        }
+
+        // Push all next level nodes into queue
+        for (int i = 0; i < nextLevel.size(); ++i) {
+            q.push(nextLevel[i]);
+        }
+    }
+
+    cout << endl;
+}
+
+int main() {
+    int numVertices, numEdges;
+    cout << "Enter number of vertices: ";
+    cin >> numVertices;
+
+    cout << "Enter number of edges: ";
+    cin >> numEdges;
+
+    vector<vector<int> > adjList(numVertices);
+
+    cout << "Enter edges (u v):\n";
+    for (int i = 0; i < numEdges; ++i) {
+        int u, v;
+        cin >> u >> v;
+        adjList[u].push_back(v);
+        adjList[v].push_back(u);  // Since it's an undirected graph
+    }
+
+    int startNode;
+    cout << "Enter starting node for BFS: ";
+    cin >> startNode;
+
+    double start = omp_get_wtime();
+    parallelBFS(adjList, startNode, numVertices);
+    double end = omp_get_wtime();
+
+    cout << "Time taken for Parallel BFS: " << end - start << " seconds" << endl;
+
+    return 0;
+}
