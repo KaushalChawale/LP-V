@@ -1,0 +1,59 @@
+#include <iostream>
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h> // Add this header for CUDA built-in variables
+using namespace std;
+
+// CUDA kernel to add two vectors
+__global__ void addVectors(int* A, int* B, int* C, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        C[i] = A[i] + B[i];
+    }
+}
+
+int main() {
+    int n = 1000000;
+    int* A, * B, * h_C; // Host pointers
+    int size = n * sizeof(int);
+    // Allocate pinned memory on host
+    cudaMallocHost(&A, size);
+    cudaMallocHost(&B, size);
+    cudaMallocHost(&h_C, size); // corrected from malloc
+    // Initialize vectors A and B
+    for (int i = 0; i < n; i++) {
+        A[i] = i;
+        B[i] = i * 2;
+    }
+    // Allocate memory on the device
+    int* dev_A, * dev_B, * dev_C;
+    cudaMalloc(&dev_A, size);
+    cudaMalloc(&dev_B, size);
+    cudaMalloc(&dev_C, size);
+    // Copy data from host to device
+    cudaMemcpy(dev_A, A, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_B, B, size, cudaMemcpyHostToDevice);
+    // Kernel launch setup
+    int blockSize = 256;
+    int numBlocks = (n + blockSize - 1) / blockSize;
+    // Launch the CUDA kernel
+    addVectors << <numBlocks, blockSize >> > (dev_A, dev_B, dev_C, n);
+    // Wait for the GPU to finish
+    cudaDeviceSynchronize();
+    // Copy result from device to host
+    cudaMemcpy(h_C, dev_C, size, cudaMemcpyDeviceToHost);
+    // Print first 10 results
+    cout << "First 10 results of vector addition:\n";
+    for (int i = 0; i < 10; i++) {
+        cout << h_C[i] << " ";
+    }
+    cout << endl;
+    // Free device memory
+    cudaFree(dev_A);
+    cudaFree(dev_B);
+    cudaFree(dev_C);
+    // Free host memory
+    cudaFreeHost(A);
+    cudaFreeHost(B);
+    cudaFreeHost(h_C);
+    return 0;
+}

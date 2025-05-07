@@ -1,0 +1,77 @@
+#include <iostream>
+#include <vector>
+#include <stack>
+#include <omp.h>
+
+using namespace std;
+
+vector<bool> visited;
+
+void parallelDFSUtil(const vector<vector<int> >& graph, int node) {
+    stack<int> s;
+    s.push(node);
+
+    while (!s.empty()) {
+        int current;
+
+        #pragma omp critical
+        {
+            current = s.top();
+            s.pop();
+        }
+
+        if (!visited[current]) {
+            #pragma omp critical
+            {
+                visited[current] = true;
+                cout << current << " ";
+            }
+
+            // Push all adjacent unvisited nodes
+            #pragma omp parallel for
+            for (int i = 0; i < graph[current].size(); i++) {
+                int neighbor = graph[current][i];
+                if (!visited[neighbor]) {
+                    #pragma omp critical
+                    s.push(neighbor);
+                }
+            }
+        }
+    }
+}
+
+void parallelDFS(const vector<vector<int> >& graph, int startNode) {
+    visited.assign(graph.size(), false);
+    parallelDFSUtil(graph, startNode);
+}
+
+int main() {
+    int vertices, edges;
+    cout << "Enter number of vertices: ";
+    cin >> vertices;
+
+    cout << "Enter number of edges: ";
+    cin >> edges;
+
+    vector<vector<int> > graph(vertices);
+    cout << "Enter edges (u v):\n";
+    for (int i = 0; i < edges; i++) {
+        int u, v;
+        cin >> u >> v;
+        graph[u].push_back(v);
+        graph[v].push_back(u);  // undirected graph
+    }
+
+    int startNode;
+    cout << "Enter starting node for DFS: ";
+    cin >> startNode;
+
+    double start = omp_get_wtime();
+    cout << "DFS Traversal: ";
+    parallelDFS(graph, startNode);
+    double end = omp_get_wtime();
+
+    cout << "\nTime taken for Parallel DFS: " << end - start << " seconds\n";
+
+    return 0;
+}
